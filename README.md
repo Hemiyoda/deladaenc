@@ -22,11 +22,11 @@ Inspired by Steve Hayes Fibonacci Delta sound compression technique
  	deladaenc.c		  The encoder, try: deladaenc freshhouse.mod -m
  	deladadec.c		  The decoder, try: deladadec encoded.df+ 
  	unladamod.c		  Decoder for mod-file with compressed data from deladaenc.    Try: unladamod packedmod.dfm 
-  differ.c		     Diffs 2 files, useful for evaluating compression artifacts.  Try: differ freshhouse.mod -m (after running unladamod)
- 	modmodder.c		  Inserts unpacked sample data into modfile. Useful for comparing sound quality with other compressors
+  differ.c		     Diffs 2 files, useful for evaluating compression artifacts.
+ 	modmodder.c		  Inserts unpacked sample data into modfile. For comparing sound quality with other compressors
  
- 	Windows gcc compile: 		      gcc deladaenc.c -o deladaenc.exe -O3
- 	Windows/Amiga gcc crossdev: 	m68k-amigaos-gcc unladamod.c -o unladamod -Os -noixemul
+ 	Windows gcc compile:         gcc deladaenc.c -o deladaenc.exe -O3
+ 	Windows/Amiga gcc crossdev:  m68k-amigaos-gcc unladamod.c -o unladamod -Os -noixemul
  	(note that the resulting amiga executables seem to require a very large stack to run)
   
  	The encoder/compressor is extremely slow due to it's brute force nature.
@@ -36,6 +36,6 @@ Inspired by Steve Hayes Fibonacci Delta sound compression technique
  				                   -Your suggestion  
  
  
- 	      Greetz to the whole Amiga scene! Erik 'Hemiyoda' Berg 
+ 	Greetz to the whole Amiga scene! Erik 'Hemiyoda' Berg 
  
   
