@@ -12,8 +12,8 @@ Inspired by Steve Hayes Fibonacci Delta sound compression technique
   Signed: Erik Berg aka Hemiyoda / DMS       2024
   ----------------------------------------------------------------------------
 
-  -- Version History --
-  v0.97 First public release, only 4K LUT implemented. Still room for improvements. There may be bugs.
+-- Version History -
+v0.97 First public release, only 4K LUT implemented. Still room for improvements. There may be bugs.
  
  
     	File format explanation, see decompressor: deladadec.c
@@ -21,9 +21,9 @@ Inspired by Steve Hayes Fibonacci Delta sound compression technique
  
  	deladaenc.c		  The encoder, try: deladaenc freshhouse.mod -m
  	deladadec.c		  The decoder, try: deladadec encoded.df+ 
- 	unladamod.c		  Decoder for mod-file with compressed data from deladaenc.    Try: unladamod packedmod.dfm 
+ 	unladamod.c		  Decoder for mod-file with compressed data from deladaenc. Try: unladamod packedmod.dfm 
   differ.c		     Diffs 2 files, useful for evaluating compression artifacts.
- 	modmodder.c		  Inserts unpacked sample data into modfile. For comparing sound quality with other compressors
+  modmodder.c		  Inserts unpacked sample data into modfile. For comparing sound quality with other compressors
  
  	Windows gcc compile:         gcc deladaenc.c -o deladaenc.exe -O3
  	Windows/Amiga gcc crossdev:  m68k-amigaos-gcc unladamod.c -o unladamod -Os -noixemul
