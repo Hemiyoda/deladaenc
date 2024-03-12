@@ -7,11 +7,11 @@ Inspired by Steve Hayes Fibonacci Delta sound compression technique
 
  - - -  - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
   <hemiyoda@gmail.com> wrote this file. 
-  If you find any use for this kludge it would be fantastic with a shout-out. 
+  If you find any use for this kludge it would be fantastic with a shout-out.
   Signed: Erik Berg aka Hemiyoda / DMS       2024
  - - -  - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
--- Version History -
+-- Version History --
 v0.97 First public release, only 4K LUT implemented. Still room for improvements. There may be bugs.
  
  
