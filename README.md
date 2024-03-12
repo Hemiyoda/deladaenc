@@ -1,7 +1,8 @@
 Adaptive Delta (Fibonacci) encoder suite v0.97  
 ----------------------------------------------
-An 8-bit lossy sound compression format. Uses 8-bit delta values called from a 256B-4K lookup table
-specifically targeted for Amiga computers with sample sizes <512Kb and aims for trivial decoding complexity
+An 8-bit lossy sound compression format. Uses 8-bit delta values called from a 4K lookup table.
+A format specifically targeted for Amiga computers with sample sizes <512Kb.
+Aims for trivial decoding complexity with decent compression and audio quality.
 
 Inspired by Steve Hayes Fibonacci Delta sound compression technique
 
