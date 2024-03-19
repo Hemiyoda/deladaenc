@@ -1,4 +1,4 @@
-// Adaptive Delta Fibonacci encoder v0.97  
+// Adaptive Delta Fibonacci encoder v0.98  
 // --------------------------------------
 // An 8-bit lossy sound compression format. Uses 8-bit delta values called from a 256B-4K lookup table
 // specifically targeted for Amiga computers with sample sizes <512Kb and aims for trivial decoding complexity
@@ -15,7 +15,11 @@
  *
  * -- Version History --
  * v0.97 First public release, only 4K LUT implemented. Room for improvements overall. There be bugs.
- *
+ * v.098 Second public release. 
+ * - Added mild culling of LUTs seldomly used. 
+ * - Encoder now prioritizes that the last byte in frame is aligned within 4 steps from next frame.
+ * - Added one more pass.
+ * - Small improvement in audioquality due to above improvements
  *
  * File format explanation, see decompressor: deladadec.c
  */
@@ -55,7 +59,6 @@
 	signed char firstsample;
 	signed char calcedsample[256];
 	signed char ltable[4097];
-	signed char fbntable[16];
 	signed char newtable[17];
 	signed char deltatable[17];
 
@@ -76,6 +79,8 @@
 	unsigned int errorthreshold;
 	unsigned int totalframes=0;
 	unsigned int frameerror[257];
+	unsigned char peak_frameerror[257];
+	unsigned char lastbyte_error[257];
 	unsigned int frame=0;
 	unsigned int stats[256];	//Should suffice for Amiga modules
 	unsigned int lowest_error=0;
@@ -86,6 +91,28 @@
 	float highestdist=0;
 
 	signed char filedata[2097152]; //2Mb
+	
+	
+// Fibonacci table as starting point
+signed char fbntable[256]={
+-34, -22, -13, -8, -5, -3, -2, -1, 0, 1, 2, 3, 5, 8, 13, 22,
+-128, -96, -80, -64, -48, -32, -16, -14, 0, 8, 16, 28, 32, 48, 64, 96,
+-128, -112, -96, -80, -64, -48, -32, -16, 0, 16, 32, 48, 64, 80, 96, 112,
+-84, -56, -42, -35, -28, -21, -14, -7, 0, 7, 14, 21, 28, 42, 84, 112,
+-60, -50, -40, -30, -20, -16, -10, 0, 10, 20, 30, 40, 50, 58, 60, 70,
+-60, -36, -20, -13, -10, -8, -3, -1, 3, 7, 11, 16, 20, 24, 40, 45,
+-40, -19, -13, -9, -8, -7, -5, -1, 5, 7, 13, 18, 19, 26, 37, 50,
+-35, -28, -20, -13, -12, -7, -3, -2, 2, 3, 11, 15, 16, 27, 33, 46,
+-37, -25, -16, -11, -9, -5, -2, 3, 5, 7, 9, 14, 15, 20, 26, 48,
+-31, -29, -26, -24, -16, -13, -9, -3, 0, 4, 9, 14, 18, 20, 24, 32,
+-30, -8, -6, -5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 6, 8, 34,
+-22, -16, -14, -10, -8, -6, -4, -2, 0, 2, 4, 6, 8, 10, 12, 16,
+-18, -14, -10, -8, -7, -6, -5, -4, -2, -1, 3, 6, 8, 12, 20, 23,
+-16, -11, -9, -5, -4, -2, -1, 0, 1, 2, 4, 6, 9, 11, 13, 14,
+-13, -10, -7, -6, -4, -3, -2, -1, 0, 2, 3, 6, 7, 10, 12, 14,
+-11, -8, -5, -4, -3, -2, -1, 0, 1, 2, 4, 5, 6, 15, 19, 37,
+};
+
 	
 
 
@@ -120,6 +147,8 @@ signed char sampleresult;
 								zz++; }
 								
 								frameerror[lookupset]=frameerror[lookupset]+errorhistory;
+								if (errorhistory>peak_frameerror[lookupset]) { peak_frameerror[lookupset]=errorhistory; }	//Save highest error for set
+								if (framectr==15) { lastbyte_error[lookupset]=errorhistory; }
 								//if (lookupset>10) { printf("lookupset %d",lookupset); printf(" index %d",(lookupset*16)+(framectr)); printf(" filepos %d\n",filepos); }
 								framebuffer[(lookupset*16)+(framectr)]=match;
 
@@ -319,7 +348,9 @@ unsigned int lookupset;
 unsigned char dc=0;
 unsigned char dc2=0;
 
-unsigned int lowest_errorset=0;
+unsigned char lowest_errorset=0;
+unsigned char lowest_lastbyteerror=0;
+
 
 		//fseek(fptr1, startoffset, SEEK_SET);		
 		//firstsample=getc(fptr1);  Replace with file read into array for speed.
@@ -343,6 +374,7 @@ frame=0;
 totalerrors=0;
 
 i=0; while (i<256) { frameerror[i]=0; i++; }  //Reset frameerrors between passes
+i=0; while (i<256) { peak_frameerror[i]=0; i++; }  //Reset frameerrors between passes
 i=0; while (i<256) { calcedsample[i]=firstsample; i++; }   //Copy first sample to all 256 "old sample" buffer
 // -----------------------------------------------------------------------------------------------------------
 
@@ -372,8 +404,13 @@ if (lookupset>no_oflookupsets) {		//All lookupsets checked, now find best result
 					while (i2<no_oflookupsets+1) {  // Find lookupset with least errors 
 									//printf("frame %d",frame); printf(" lookupset %d",i2); printf(" calcedsample %d", calcedsample[i2]); printf(" error count %d\n", frameerror[i2]);
 									if (frameerror[i2]<lowest_error) { 
+																		if (lastbyte_error[i2]<5) {
 																		lowest_error=frameerror[i2]; 
-																		lowest_errorset=i2; 
+																		lowest_errorset=i2; } 
+																	//printf("set %d",i2);
+																	//printf(" frameerror %d",frameerror[i2]);
+																	//printf(" lastbyte_error %d",lastbyte_error[i2]); 
+																	//printf(" lowest errorset %d\n",lowest_errorset); 
 																	}
 									frameerror[i2]=0;   // Reset frameerrors
 									i2++;
@@ -408,18 +445,18 @@ if (lookupset>no_oflookupsets) {		//All lookupsets checked, now find best result
 		frame++; 
 		lookupset=0;
 
-											if (save==1) {  if (frame>totalframes) { if (spillbytes>0) { savebestframe(lowest_errorset, spillbytes); 
-																											printf("  frame: %d\n", frame); }}
-															if (frame<=totalframes) { savebestframe(lowest_errorset, 16); }
-															//printf("  S-pos: %d\n",filepos);  
-															 }
+							if (save==1) {  if (frame>totalframes) { if (spillbytes>0) { savebestframe(lowest_errorset, spillbytes); 
+																								printf("  frame: %d\n", frame); }}
+											if (frame<=totalframes) { savebestframe(lowest_errorset, 16); }
+											//printf("  S-pos: %d\n",filepos);  
+							}
 											
-											// Swap in last calced sample from best set to all samplesets
-											sampleswapper=calcedsample[lowest_errorset];
-											i=0; while (i<256) { calcedsample[i]=sampleswapper; i++; } 
+							// Swap in last calced sample from best set to all samplesets
+							sampleswapper=calcedsample[lowest_errorset];
+							i=0; while (i<256) { calcedsample[i]=sampleswapper; i++; } 
 										
-											filepos=startoffset+(frame*16)+1; 
-											i=0; while (i<16) { readbuffer[i]=filedata[filepos+i]; i++; } 
+							filepos=startoffset+(frame*16)+1; 
+							i=0; while (i<16) { readbuffer[i]=filedata[filepos+i]; i++; } 
 
 										
 }			
@@ -560,7 +597,9 @@ while (dtp<16 && zeroes>zeroinorigset-1) {
 		match=0;
 		tv=0;
 		while (tv<16) {										//Copy in additional values from next frame if possible
-							if (newtable[tv]==deltatable[dtp]) { match=1; }  
+							if (newtable[tv]==deltatable[dtp]) { match=1; } 
+							if (newtable[tv] < -50) { if (newtable[tv]==deltatable[dtp]-1 || newtable[tv]==deltatable[dtp]+1) { match=1; }}	
+							if (newtable[tv] > 50) { if (newtable[tv]==deltatable[dtp]-1 || newtable[tv]==deltatable[dtp]+1) { match=1; }}								
 		tv++;
 		}
 		
@@ -649,7 +688,7 @@ while (tv<16) {			//Prune table of values close to each other, save lower value
 				
 				diff=newtable[tv+1]-newtable[tv];
 				
-				if (newtable[tv]<-95) { if (diff<4 && diff>0) { 
+				if (newtable[tv]<-70) { if (diff<4 && diff>0) { 
 																/*
 																printf("nv1: %d ",newtable[tv]); 
 																printf("nv2: %d ",newtable[tv+1]); 
@@ -661,7 +700,7 @@ while (tv<16) {			//Prune table of values close to each other, save lower value
 										} 
 				}
 				
-				if (newtable[tv]>95) { if (diff<4 && diff>0) { 
+				if (newtable[tv]>70) { if (diff<4 && diff>0) { 
 																/*
 																printf("pv1: %d ",newtable[tv]); 
 																printf("pv2: %d ",newtable[tv+1]); 
@@ -764,6 +803,7 @@ unsigned char sampledata;
 unsigned long codedfilelength=0;
 unsigned long fileidx=0;
 
+
 fseek(fptr3, 0, SEEK_SET); // Seek to beginning in encoded audio-data
 while ((dummy = getc(fptr3)) != EOF) { codedfilelength++; }
 
@@ -799,30 +839,33 @@ unsigned int lu_reorder(void) {
 unsigned int c=0;
 unsigned int c2=0;
 unsigned char c3=0;
-unsigned long match;
+unsigned int matchval;
+unsigned char match=0;
 unsigned char pass;
 signed char newtable[4096];
+unsigned char ones=0;
 
 printf("Entering Lookup-reordering.\n ");
 
-match=65535;
+matchval=65535;
 c3=0;
-while (match>0) {
-				c2=0; //printf("Match: %d\n", match);
-				while (c2<256) {
-								if (stats[c2]==match) { 
+while (matchval>0) {
+	c2=0; //printf("matchval: %d\n", matchval);
+	match=0;
+	while (c2<256) {
+					if (stats[c2]==matchval) {	stats[c2]=0; match=1; if (matchval>0 && matchval<3) { ones++; }
+											printf("Set: %d", c2); printf(" new order: %d", c3); printf(" times used: %d\n", matchval);
 														
-														stats[c2]=0;
-														printf("Set: %d", c2); printf(" new order: %d", c3); printf(" times used: %d\n", match);
-														
-														c=0; while (c<16) { newtable[(c3*16)+c]=ltable[(c2*16)+c]; c++; } // Copy LU-entry to new table
+											c=0; while (c<16) { newtable[(c3*16)+c]=ltable[(c2*16)+c]; c++; } // Copy LU-entry to new table
 
-														c3++; pass=c3; 	
-								}
-				c2++;
-				} 
-match--;	
+											c3++; pass=c3; 	
+					}
+	c2++;
+	} 
+if (match==0) { matchval--; }	
 }
+
+if (ones>6) { ones=ones/3; }
 
 c2=0;
 while (c2<pass) { 
@@ -831,7 +874,12 @@ while (c2<pass) {
 c2++;
 }	
 
-c2=pass;
+c2=pass-ones; // Cull some sets only used once
+pass=c2;
+printf(" ones: %d\n", ones); 
+printf(" new pass: %d\n", c2);
+printf(" old pass: %d\n", pass);
+pass=c2;
 while (c2<256) { 
 
 					c=0; while (c<16) { ltable[(c2*16)+c]=0; c++; } // Reset unused sets to 0
@@ -882,28 +930,11 @@ if (argc>2) { optcheck=strcmp (argv[2], "-m"); } if (optcheck==0) { modmode=1; }
 while (il<4096) { ltable[il]=0; il++; }
 il=0;
 
-// Fibonacci table as starting point
-fbntable[0]=34;
-fbntable[1]=22;
-fbntable[2]=-21;
-fbntable[3]=13;
-fbntable[4]=-13;
-fbntable[5]=8;
-fbntable[6]=-8;
-fbntable[7]=5;
-fbntable[8]=-5;
-fbntable[9]=3;
-fbntable[10]=-3;
-fbntable[11]=2;
-fbntable[12]=-2;
-fbntable[13]=1;
-fbntable[14]=-1;
-fbntable[15]=0;
 
-while (il<16) { ltable[il]=fbntable[il]; il++; }
+while (il<256) { ltable[il]=fbntable[il]; il++; }
 il=0;
 
-	printf("Adaptive Delta-(Fibonacci) encoder v0.97\n");
+	printf("Adaptive Delta-(Fibonacci) encoder v0.98\n");
 	printf(" Hemiyoda hemiyoda@gmail.com 2024 \n\n");
 	printf(" Usage: dfaenc filename [-m]  \n\n");
 	printf("filename"); printf("		Soundfile in signed 8-bit format or .mod file (Noisetracker/Protracker)\n");
@@ -957,7 +988,7 @@ if (argc<2) { printf( "Filename missing, exiting.\n"); return 1; }
 
 mindistance=totalsamples/64;
 save=0;
-passno=0;
+passno=16;
 totalpasses=64; //64
 errorthreshold=20; //20
 passhandler(passno, totalpasses, mindistance);						
@@ -983,8 +1014,8 @@ passno=lu_reorder();   //Optimize lookup table and discard seldomly used sets
 openencodedaswrite();
 
 save=0;
-totalpasses=190;
-errorthreshold=15;
+totalpasses=180;
+errorthreshold=17;
 mindistance=totalsamples/220;
 passhandler(passno, totalpasses, mindistance);  //Do fourth pass to find better values		
 
@@ -995,7 +1026,7 @@ passno=lu_reorder();   //Optimize lookup table and discard seldomly used sets
 openencodedaswrite();
 
 save=0;
-totalpasses=255;
+totalpasses=235;
 errorthreshold=85;
 mindistance=totalsamples/4096;
 passhandler(passno, totalpasses, mindistance);  //Do fifth pass to find better values		
@@ -1011,6 +1042,19 @@ totalpasses=255;
 errorthreshold=20;
 mindistance=totalsamples/256;
 passhandler(passno, totalpasses, mindistance);  //Do sixth pass to find better values		
+
+
+openencodedasread();
+statdecoder();
+passno=lu_reorder();   //Optimize lookup table and discard seldomly used sets
+openencodedaswrite();
+
+save=0;
+totalpasses=255;
+errorthreshold=10;
+mindistance=totalsamples/256;
+passhandler(passno, totalpasses, mindistance);  //Do seventh pass to find better values		
+
 
 		
 	fseek(fptr2, 0, SEEK_SET); // Seek to beginning in lookup-data
